@@ -3,6 +3,7 @@ import Image from 'next/image'
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
+import { SignInButton } from '@clerk/nextjs'
 
 const menuOptions = [
     {
@@ -37,7 +38,10 @@ function Header() {
             ))}
         </div>
         {/* get Started Button */}
-        <Button>Get Started</Button>
+
+        <SignInButton mode='modal'>
+        <Button className='cursor-pointer'>Get Started</Button>
+        </SignInButton>
 
     </div>
   )
