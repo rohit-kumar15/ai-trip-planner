@@ -8,6 +8,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "@arcjet/inspect": "^1.0.0-beta.15",
+    "@arcjet/next": "^1.0.0-beta.15",
     "@clerk/nextjs": "^6.36.5",
     "@radix-ui/react-slot": "^1.2.4",
     "@tabler/icons-react": "^3.36.0",
