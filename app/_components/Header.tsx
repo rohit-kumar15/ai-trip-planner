@@ -46,8 +46,8 @@ function Header() {
         {!user ? <SignInButton mode='modal'>
         <Button className='cursor-pointer'>Get Started</Button>
         </SignInButton>:
-        <Link href={'/create-trip'}>
-        <Button className='cursor-pointer'>Create New Trip</Button>
+        <Link href={'/create-new-trip'}>
+            <Button className='cursor-pointer'>Create New Trip</Button>
         </Link>
         }
 
