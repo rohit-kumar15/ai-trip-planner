@@ -8,7 +8,7 @@ import React from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/dist/client/components/navigation'
 
-const suggestions = [
+export const suggestions = [
     {
         title:'Create New Trip',
         icon:<Globe2 className='text-blue-400 h-5 w-5'/>
