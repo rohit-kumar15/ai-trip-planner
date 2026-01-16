@@ -32,17 +32,19 @@ function ChatBox() {
       content: userMessage,
     };
 
-    setMessages((prev: Message[]) => [...prev, newUserMsg]);
+    // Update messages state first
+    const updatedMessages = [...messages, newUserMsg];
+    setMessages(updatedMessages);
 
     try {
-      // Pass the updated messages array with the new user message
+      // Pass the full updated messages array to the API
       const response = await fetch("/api/aimodel", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages: [...messages, newUserMsg],
+          messages: updatedMessages,
         }),
       });
 
@@ -53,11 +55,13 @@ function ChatBox() {
 
       const data = await response.json();
 
-      // Check if response has data
-      if (data?.text) {
+      // Handle multiple response formats from your API
+      const responseText = data?.text || data?.resp || data?.response || data?.message;
+      
+      if (responseText) {
         const assistantMsg: Message = {
           role: "assistant",
-          content: data.text,
+          content: responseText,
         };
         setMessages((prev: Message[]) => [...prev, assistantMsg]);
       } else {
@@ -68,6 +72,9 @@ function ChatBox() {
       const errorMessage = err instanceof Error ? err.message : "An error occurred";
       setError(errorMessage);
       console.error("API Error:", err);
+      
+      // Remove the user message if the API call failed
+      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
     }
