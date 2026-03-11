@@ -116,32 +116,24 @@ function ChatBox() {
   };
 
   return (
-    <div className="h-[85vh] flex flex-col">
-      {messages.length === 0 && (
-        <EmptyBoxState
-          onSelectOption={(v: string) => onSend(v)}
-        />
-      )}
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      {/* Messages & Empty State - Scrollable */}
+      <section className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth min-h-0">
+        {messages.length === 0 && (
+          <EmptyBoxState
+            onSelectOption={(v: string) => onSend(v)}
+          />
+        )}
 
-      {/* Messages */}
-      <section className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, index) => (
           <div
             key={index}
-            className={`flex ${
-              msg.role === "user"
-                ? "justify-end"
-                : "justify-start"
-            }`}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-500`}
           >
             <div
-              className={`max-w-lg px-4 py-2 rounded-2xl ${
-                msg.role === "user"
-                  ? "bg-primary text-white"
-                  : "bg-gray-100 text-black"
-              }`}
+              className={`max-w-lg px-6 py-4 rounded-2xl transition-all duration-300 ${msg.role === "user" ? "bg-gradient-to-br from-orange-500 to-pink-600 text-white premium-shadow hover:shadow-2xl" : "glassmorphism text-gray-900 border border-white/50 hover:border-orange-300/50"}`}
             >
-              {msg.content}
+              <p className="text-sm md:text-base leading-relaxed">{msg.content}</p>
 
               {/* ✅ Dynamic UI */}
               {msg.role === "assistant" &&
@@ -151,43 +143,45 @@ function ChatBox() {
         ))}
 
         {loading && (
-          <div className="flex justify-start">
-            <div className="max-w-lg bg-gray-100 text-black px-4 py-2 rounded-2xl flex items-center gap-2">
-              <Loader className="h-4 w-4 animate-spin" />
-              <span>Thinking...</span>
+          <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
+            <div className="max-w-lg glassmorphism text-gray-900 px-6 py-4 rounded-2xl flex items-center gap-3 border border-white/50">
+              <Loader className="h-5 w-5 animate-spin text-orange-500" />
+              <span className="text-sm md:text-base font-medium">Thinking...</span>
             </div>
           </div>
         )}
 
         {error && (
           <div className="flex justify-start">
-            <div className="max-w-lg bg-red-100 text-red-800 px-4 py-2 rounded-2xl">
-              Error: {error}
+            <div className="max-w-lg bg-red-50/80 backdrop-blur-sm text-red-800 px-6 py-4 rounded-2xl border border-red-200/50 shadow-lg">
+              <p className="text-sm md:text-base">Error: {error}</p>
             </div>
           </div>
         )}
       </section>
 
-      {/* Input */}
-      <section className="p-4">
-        <div className="border rounded-2xl p-4 shadow-md relative">
+      {/* Input - Always visible at bottom */}
+      <section className="shrink-0 p-4 md:p-6 border-t border-white/10 bg-white/30 backdrop-blur-sm">
+        <div className="glassmorphism glow-input rounded-2xl p-4 relative group hover-lift">
           <Textarea
             placeholder="Start typing here..."
-            className="w-full h-20 bg-transparent border-none focus-visible:ring-0 shadow-none resize-none"
+            className="w-full h-24 pr-16 bg-transparent border-none focus-visible:ring-0 shadow-none resize-none text-base placeholder:text-gray-500 placeholder:font-light"
             onChange={(e) => setUserInput(e.target.value)}
             onKeyDown={handleKeyPress}
             value={userInput}
             disabled={loading}
           />
 
-          <Button
-            size="icon"
-            className="absolute bottom-6 right-6"
-            onClick={() => onSend()}
-            disabled={loading || !userInput.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          <div className="absolute bottom-4 right-4">
+            <Button
+              size="icon"
+              className="gradient-button-hover transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-2xl hover:-translate-y-1"
+              onClick={() => onSend()}
+              disabled={loading || !userInput.trim()}
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
       </section>
     </div>
