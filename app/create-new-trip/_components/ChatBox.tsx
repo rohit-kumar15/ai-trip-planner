@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader, Send } from "lucide-react";
@@ -10,17 +10,147 @@ import BudgetUi from "./BudgetUi";
 import SelectDaysUi from "./SelectDaysUi";
 import FinalUi from "./FinalUi";
 
+// ✅ TripInfo Type
+type TripInfo = {
+  budget: string;
+  destination: string;
+  duration: string;
+  group_size: string;
+  origin: string;
+  hotels: any;
+  itinerary: any;
+};
+
 type Message = {
   role: "user" | "assistant";
   content: string;
   ui?: string;
 };
 
+// ✅ FINAL_PROMPT for trip plan generation
+const FINAL_PROMPT = `Generate Travel Plan with give details, give me Hotels options list with HotelName, Hotel address, Price, hotel image url, geo coordinates, rating, descriptions and suggest itinerary with placeName, Place Details, Place Image Url, Geo Coordinates, Place address, ticket Pricing, Time travel each of the location , with each day plan with best time to visit in JSON format.
+Output Schema.
+{
+"trip_plan": {
+"destination": "string",
+"duration": "string",
+"origin": "string",
+"budget": "string",
+"group_size": "string",
+"hotels": [
+{
+"hotel_name": "string",
+"hotel_address": "string",
+"price_per_night": "string",
+"hotel_image_url": "string",
+"geo_coordinates": {
+"latitude": "number",
+"longitude": "number"
+},
+"rating": "number",
+"description": "string"
+}
+],
+"itinerary": [
+{
+"day": "number",
+"day_plan": "string",
+"best_time_to_visit_day": "string",
+"activities": [
+{
+"place_name": "string",
+"place_details": "string",
+"place_image_url": "string",
+"geo_coordinates": {
+"latitude": "number",
+"longitude": "number"
+},
+"place_address": "string",
+"ticket_pricing": "string",
+"time_travel_each_location": "string",
+"best_time_to_visit": "string"
+}
+]
+}
+]
+}
+}
+`;
+
 function ChatBox() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [tripData, setTripData] = useState<TripInfo | null>(null);
+  const [tripLoading, setTripLoading] = useState(false);
+
+  // ✅ Extract trip form data from chat messages
+  const extractFormData = () => {
+    const userMsgs = messages.filter((m) => m.role === "user");
+    return {
+      origin: userMsgs[0]?.content || "",
+      destination: userMsgs[1]?.content || "",
+      group_size: userMsgs[2]?.content || "",
+      budget: userMsgs[3]?.content || "",
+      duration: userMsgs[4]?.content || "",
+      interests: userMsgs[5]?.content || "",
+    };
+  };
+
+  // ✅ Generate trip plan using FINAL_PROMPT
+  const generateTripPlan = async () => {
+    if (tripLoading || tripData) return; // Prevent duplicate calls
+
+    setTripLoading(true);
+    try {
+      const formData = extractFormData();
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: FINAL_PROMPT,
+          tripInfo: formData,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate trip plan");
+      }
+
+      console.log("Generated Trip Plan:", data);
+
+      // Store data using TripInfo type
+      const plan = data.trip_plan || data;
+      setTripData({
+        budget: plan.budget || "",
+        destination: plan.destination || "",
+        duration: plan.duration || "",
+        group_size: plan.group_size || "",
+        origin: plan.origin || "",
+        hotels: plan.hotels || [],
+        itinerary: plan.itinerary || [],
+      });
+    } catch (error) {
+      console.error("Trip generation failed:", error);
+    } finally {
+      setTripLoading(false);
+    }
+  };
+
+  // ✅ Detect when "final" UI appears — auto-trigger trip generation
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.ui === "final") {
+      generateTripPlan();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   // ✅ FIXED onSend
   const onSend = async (value?: string) => {
@@ -101,7 +231,13 @@ function ChatBox() {
         );
 
       case "final":
-        return <FinalUi viewTrip={() => console.log("View Trip")} />;
+        return (
+          <FinalUi
+            viewTrip={() => generateTripPlan()}
+            loading={tripLoading}
+            tripReady={!!tripData}
+          />
+        );
 
       default:
         return null;

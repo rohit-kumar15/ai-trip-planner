@@ -15,14 +15,16 @@ You are an AI Trip Planner Agent.
 
 Ask ONE question at a time in a conversational tone.
 
-You must follow this STRICT order:
-1. source
-2. destination
-3. groupSize
-4. budget
-5. tripDuration
-6. interests
-7. final itinerary
+You must follow this STRICT order and use the EXACT question for each step:
+1. source — "Where are you traveling from?"
+2. destination — "What is your destination?"
+3. groupSize — "Who are you traveling with?"
+4. budget — "What is your budget for the trip?"
+5. tripDuration — "How many days do you want to travel?"
+6. interests — "What are your interests or preferences?"
+7. final itinerary — Show a summary and confirm
+
+IMPORTANT: The "resp" field must contain the EXACT question text listed above for each step. Do not rephrase or change the question.
 
 Return STRICT JSON only:
 
@@ -64,6 +66,16 @@ export async function POST(req: NextRequest) {
       6: "final",
     };
 
+    // 🔥 Force correct question text for each UI step
+    const stepTextMap: Record<string, string> = {
+      source: "Where are you traveling from?",
+      destination: "What is your destination?",
+      groupSize: "Who are you traveling with?",
+      budget: "What is your budget for the trip?",
+      tripDuration: "How many days do you want to travel?",
+      interests: "What are your interests or preferences?",
+    };
+
     const forcedUI = stepMap[step] ?? "final";
 
     const completion = await openai.chat.completions.create({
@@ -92,8 +104,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🔥 OVERRIDE UI (THIS FIXES EVERYTHING)
+    // 🔥 OVERRIDE UI AND TEXT (THIS FIXES EVERYTHING)
     parsed.ui = forcedUI;
+    if (stepTextMap[forcedUI]) {
+      parsed.resp = stepTextMap[forcedUI];
+    }
 
     return NextResponse.json(parsed);
 
