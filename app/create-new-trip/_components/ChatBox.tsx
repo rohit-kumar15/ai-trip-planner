@@ -9,8 +9,11 @@ import GroupSizeUi from "./GroupSizeUi";
 import BudgetUi from "./BudgetUi";
 import SelectDaysUi from "./SelectDaysUi";
 import FinalUi from "./FinalUi";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useUserDetail } from "@/app/provider";
+import { v4 as uuidv4 } from "uuid";
 
-// ✅ TripInfo Type
 type TripInfo = {
   budget: string;
   destination: string;
@@ -27,7 +30,6 @@ type Message = {
   ui?: string;
 };
 
-// ✅ FINAL_PROMPT for trip plan generation
 const FINAL_PROMPT = `Generate Travel Plan with give details, give me Hotels options list with HotelName, Hotel address, Price, hotel image url, geo coordinates, rating, descriptions and suggest itinerary with placeName, Place Details, Place Image Url, Geo Coordinates, Place address, ticket Pricing, Time travel each of the location , with each day plan with best time to visit in JSON format.
 Output Schema.
 {
@@ -77,32 +79,37 @@ Output Schema.
 }
 `;
 
-function ChatBox() {
+function ChatBox({ onTripGenerated }: { onTripGenerated?: (data: TripInfo) => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+
   const [tripData, setTripData] = useState<TripInfo | null>(null);
   const [tripLoading, setTripLoading] = useState(false);
 
-  // ✅ Extract trip form data from chat messages
+  const SaveTripDetail = useMutation(api.tripDetail.CreateTripDetail);
+  const { userDetail } = useUserDetail();
+
   const extractFormData = () => {
     const userMsgs = messages.filter((m) => m.role === "user");
+
+    // Skip first message (it's the "Create New Trip" trigger, not trip data)
     return {
-      origin: userMsgs[0]?.content || "",
-      destination: userMsgs[1]?.content || "",
-      group_size: userMsgs[2]?.content || "",
-      budget: userMsgs[3]?.content || "",
-      duration: userMsgs[4]?.content || "",
-      interests: userMsgs[5]?.content || "",
+      origin: userMsgs[1]?.content || "",
+      destination: userMsgs[2]?.content || "",
+      group_size: userMsgs[3]?.content || "",
+      budget: userMsgs[4]?.content || "",
+      duration: userMsgs[5]?.content || "",
+      interests: userMsgs[6]?.content || "",
     };
   };
 
-  // ✅ Generate trip plan using FINAL_PROMPT
   const generateTripPlan = async () => {
-    if (tripLoading || tripData) return; // Prevent duplicate calls
+    if (tripLoading || tripData) return;
 
     setTripLoading(true);
+
     try {
       const formData = extractFormData();
 
@@ -125,8 +132,8 @@ function ChatBox() {
 
       console.log("Generated Trip Plan:", data);
 
-      // Store data using TripInfo type
       const plan = data.trip_plan || data;
+
       setTripData({
         budget: plan.budget || "",
         destination: plan.destination || "",
@@ -136,6 +143,31 @@ function ChatBox() {
         hotels: plan.hotels || [],
         itinerary: plan.itinerary || [],
       });
+
+      // 🔥 Save Trip to Convex DB
+      const tripId = uuidv4();
+
+      await SaveTripDetail({
+        tripId: tripId,
+        tripDetail: plan,
+        uid: userDetail?._id,
+      });
+
+      console.log("Trip saved successfully");
+
+      // Notify parent component
+      const tripResult: TripInfo = {
+        budget: plan.budget || "",
+        destination: plan.destination || "",
+        duration: plan.duration || "",
+        group_size: plan.group_size || "",
+        origin: plan.origin || "",
+        hotels: plan.hotels || [],
+        itinerary: plan.itinerary || [],
+      };
+      setTripData(tripResult);
+      onTripGenerated?.(tripResult);
+
     } catch (error) {
       console.error("Trip generation failed:", error);
     } finally {
@@ -143,16 +175,14 @@ function ChatBox() {
     }
   };
 
-  // ✅ Detect when "final" UI appears — auto-trigger trip generation
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
+
     if (lastMsg?.ui === "final") {
       generateTripPlan();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
-  // ✅ FIXED onSend
   const onSend = async (value?: string) => {
     const messageToSend = value ?? userInput;
 
@@ -173,7 +203,9 @@ function ChatBox() {
     try {
       const response = await fetch("/api/aimodel", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ messages: updatedMessages }),
       });
 
@@ -194,17 +226,19 @@ function ChatBox() {
       } else {
         setError("Invalid AI response format");
       }
+
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "An error occurred";
+
       setError(errorMessage);
       setMessages((prev) => prev.slice(0, -1));
+
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Clean Generative UI Router
   const RenderGenerativeUi = (ui?: string) => {
     if (!ui) return null;
 
@@ -253,8 +287,9 @@ function ChatBox() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      {/* Messages & Empty State - Scrollable */}
+
       <section className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth min-h-0">
+
         {messages.length === 0 && (
           <EmptyBoxState
             onSelectOption={(v: string) => onSend(v)}
@@ -264,44 +299,54 @@ function ChatBox() {
         {messages.map((msg, index) => (
           <div
             key={index}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-500`}
+            className={`flex ${msg.role === "user"
+                ? "justify-end"
+                : "justify-start"
+              }`}
           >
-            <div
-              className={`max-w-lg px-6 py-4 rounded-2xl transition-all duration-300 ${msg.role === "user" ? "bg-gradient-to-br from-orange-500 to-pink-600 text-white premium-shadow hover:shadow-2xl" : "glassmorphism text-gray-900 border border-white/50 hover:border-orange-300/50"}`}
-            >
-              <p className="text-sm md:text-base leading-relaxed">{msg.content}</p>
 
-              {/* ✅ Dynamic UI */}
+            <div
+              className={`max-w-lg px-6 py-4 rounded-2xl ${msg.role === "user"
+                  ? "bg-gradient-to-br from-orange-500 to-pink-600 text-white"
+                  : "glassmorphism text-gray-900 border border-white/50"
+                }`}
+            >
+
+              <p>{msg.content}</p>
+
               {msg.role === "assistant" &&
                 RenderGenerativeUi(msg.ui)}
+
             </div>
           </div>
         ))}
 
         {loading && (
-          <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
-            <div className="max-w-lg glassmorphism text-gray-900 px-6 py-4 rounded-2xl flex items-center gap-3 border border-white/50">
+          <div className="flex justify-start">
+            <div className="glassmorphism px-6 py-4 rounded-2xl flex items-center gap-3">
               <Loader className="h-5 w-5 animate-spin text-orange-500" />
-              <span className="text-sm md:text-base font-medium">Thinking...</span>
+              Thinking...
             </div>
           </div>
         )}
 
         {error && (
           <div className="flex justify-start">
-            <div className="max-w-lg bg-red-50/80 backdrop-blur-sm text-red-800 px-6 py-4 rounded-2xl border border-red-200/50 shadow-lg">
-              <p className="text-sm md:text-base">Error: {error}</p>
+            <div className="bg-red-50 text-red-800 px-6 py-4 rounded-2xl">
+              Error: {error}
             </div>
           </div>
         )}
+
       </section>
 
-      {/* Input - Always visible at bottom */}
-      <section className="shrink-0 p-4 md:p-6 border-t border-white/10 bg-white/30 backdrop-blur-sm">
-        <div className="glassmorphism glow-input rounded-2xl p-4 relative group hover-lift">
+      <section className="shrink-0 p-4 md:p-6 border-t">
+
+        <div className="glassmorphism rounded-2xl p-4 relative">
+
           <Textarea
             placeholder="Start typing here..."
-            className="w-full h-24 pr-16 bg-transparent border-none focus-visible:ring-0 shadow-none resize-none text-base placeholder:text-gray-500 placeholder:font-light"
+            className="w-full h-24 pr-16 bg-transparent border-none resize-none"
             onChange={(e) => setUserInput(e.target.value)}
             onKeyDown={handleKeyPress}
             value={userInput}
@@ -309,16 +354,18 @@ function ChatBox() {
           />
 
           <div className="absolute bottom-4 right-4">
+
             <Button
               size="icon"
-              className="gradient-button-hover transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-2xl hover:-translate-y-1"
               onClick={() => onSend()}
               disabled={loading || !userInput.trim()}
             >
               <Send className="h-5 w-5" />
             </Button>
+
           </div>
         </div>
+
       </section>
     </div>
   );
